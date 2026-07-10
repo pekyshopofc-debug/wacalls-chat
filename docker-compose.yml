@@ -1,0 +1,75 @@
+# =============================================================================
+#  WaCalls — Docker Compose (Dokploy / Coolify / manual deploy)
+#  Uso: docker compose up -d
+# =============================================================================
+#
+# Dokploy gerencia automaticamente:
+#   - Domínio: wacalls.atozsolutions.xyz
+#   - SSL (Let's Encrypt via Traefik)
+#   - Git deploy automático no push
+#
+# O backend Go serve tanto a API quanto o frontend SPA na porta 8080.
+# Dokploy faz o proxy reverso (80/443 → 8080) e cuida do SSL.
+
+version: "3.8"
+
+services:
+  wacalls:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wacalls
+    restart: unless-stopped
+
+    # Porta interna — Dokploy/Traefik faz o proxy de 80/443 para esta porta
+    ports:
+      - "8080:8080"
+
+    # Persistência do SQLite e mídia das gravações
+    volumes:
+      - wacalls_data:/data
+      - wacalls_media:/app/media
+
+    environment:
+      - TZ=America/Sao_Paulo
+
+      # ─── Domínios permitidos para CORS ──────────────────────────────
+      # Obrigatório para que o frontend no domínio consiga chamar a API
+      - WACALLS_ALLOWED_ORIGINS=https://wacalls.atozsolutions.xyz
+
+      # ─── Redis (OPCIONAL) ───────────────────────────────────────────
+      # Se não configurar, usa cache em memória (perfeito para 1 instância)
+      # Configure apenas se for rodar múltiplas réplicas do backend
+      # - REDIS_URL=redis://:senha@redis:6379/0
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Redis (OPCIONAL — descomente se precisar) ──────────────────────
+  # Só necessário se você planeja rodar mais de 1 instância do backend
+  # ou precisa de cache compartilhado entre múltiplos servidores.
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: wacalls-redis
+  #   restart: unless-stopped
+  #   command: redis-server --requirepass "${REDIS_PASSWORD:-changeme}"
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+
+volumes:
+  wacalls_data:
+    name: wacalls_data
+  wacalls_media:
+    name: wacalls_media
+  # redis_data:           # Descomente se usar Redis

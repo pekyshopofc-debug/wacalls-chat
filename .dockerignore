@@ -1,0 +1,60 @@
+# ─── WaCalls .dockerignore ─────────────────────────────────────────────
+# Exclude everything from Docker build context that is not needed at runtime.
+
+# Local development
+.git/
+.gitignore
+.gitattributes
+*.md
+SETUP.md
+LICENSE
+
+# Node.js
+client/node_modules/
+client/.vite/
+client/*.tsbuildinfo
+node_modules/
+
+# Build artifacts (rebuilt inside Docker)
+client/dist/
+/dist/
+/bin/
+
+# Databases (local development copies)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Data & media (local copies)
+/data/
+/media/
+/auth/
+
+# Binaries
+wacalls-server
+wacalls-server.exe
+*.exe
+*.test
+*.out
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Logs & debug
+npm-debug.log*
+yarn-error.log*
+coverage.*
+*.prof
+*.pcap
+*.pcapng
+*.keys
+nc-qr.txt
+
+# Vendor (not used in Go modules mode)
+/vendor/
