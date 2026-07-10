@@ -698,6 +698,78 @@ func (s *authStore) SeedAdmin(ctx context.Context, email, password string) (bool
 	return true, nil
 }
 
+// EnsureAdmin creates or updates the admin user identified by email.
+// Unlike SeedAdmin (which only works on an empty database), this function
+// always ensures the given email/password admin exists:
+//   - If no user with that email exists → creates a new admin.
+//   - If a user with that email already exists → updates the password hash.
+// This guarantees the configured seed credentials always work, even when
+// the database volume is reused across deployments with different passwords.
+func (s *authStore) EnsureAdmin(ctx context.Context, email, password string) (bool, error) {
+	email = normalizeEmail(email)
+	if !validEmail(email) {
+		return false, ErrInvalidEmail
+	}
+	if len(password) < 8 {
+		return false, ErrWeakPassword
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return false, err
+	}
+	// Check if the user already exists
+	var existingID string
+	var existingActive int
+	err = s.db.QueryRowContext(ctx, `SELECT id, active FROM users WHERE email = ?`, email).Scan(&existingID, &existingActive)
+	if err == nil {
+		// User exists — update password and ensure admin role
+		if _, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ?, active = 1 WHERE id = ?`, string(hash), existingID); err != nil {
+			return false, err
+		}
+		// Ensure admin role
+		if _, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?,?)`, existingID, RoleAdmin); err != nil {
+			return false, err
+		}
+		// Revoke all existing tokens so the user is forced to re-login
+		if tokens, err := s.db.QueryContext(ctx, `SELECT token FROM auth_tokens WHERE user_id = ?`, existingID); err == nil {
+			var revoke []string
+			for tokens.Next() {
+				var t string
+				if err := tokens.Scan(&t); err == nil {
+					revoke = append(revoke, t)
+				}
+			}
+			tokens.Close()
+			_, _ = s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE user_id = ?`, existingID)
+			if len(revoke) > 0 && s.OnTokensRevoked != nil {
+				go s.OnTokensRevoked(revoke)
+			}
+		}
+		return true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// User does not exist — create new admin
+		id := newID()
+		now := time.Now().Unix()
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return false, err
+		}
+		defer tx.Rollback()
+		if _, err := tx.ExecContext(ctx, `INSERT INTO users (id, email, password_hash, created_at, active) VALUES (?,?,?,?,1)`, id, email, string(hash), now); err != nil {
+			return false, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO user_roles (user_id, role) VALUES (?,?)`, id, RoleAdmin); err != nil {
+			return false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, err
+}
+
 // PermissionsFor returns the explicit permission keys granted to a user.
 // Admin users implicitly have every capability — the UI should treat
 // admins as fully permitted regardless of this list.

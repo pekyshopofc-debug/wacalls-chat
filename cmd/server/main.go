@@ -53,10 +53,10 @@ func main() {
 	defer srv.sessions.disconnectAll()
 
 	if *seedAdminEmail != "" {
-		if created, err := srv.auth.SeedAdmin(ctx, *seedAdminEmail, *seedAdminPass); err != nil {
+		if created, err := srv.auth.EnsureAdmin(ctx, *seedAdminEmail, *seedAdminPass); err != nil {
 			log.Error("seed admin failed", "err", err)
 		} else if created {
-			log.Info("default admin created", "email", *seedAdminEmail)
+			log.Info("default admin ensured", "email", *seedAdminEmail)
 		}
 	}
 
