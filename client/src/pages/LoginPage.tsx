@@ -25,7 +25,7 @@ export const LoginPage = () => {
   const loading = useAuth((s) => s.loading);
   const login = useAuth((s) => s.login);
   const refresh = useAuth((s) => s.refresh);
-  const [email, setEmail] = useState("wacalls@admin.com");
+  const [email, setEmail] = useState("superadmin@atozsolutions.xyz");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);

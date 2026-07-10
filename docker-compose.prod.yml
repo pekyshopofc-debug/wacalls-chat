@@ -19,6 +19,8 @@ services:
     environment:
       - TZ=America/Sao_Paulo
       - WACALLS_ALLOWED_ORIGINS=https://wacalls.atozsolutions.xyz
+      - SEED_ADMIN_EMAIL=superadmin@atozsolutions.xyz
+      - SEED_ADMIN_PASSWORD=wacalls@admin
 
     networks:
       - dokploy-network

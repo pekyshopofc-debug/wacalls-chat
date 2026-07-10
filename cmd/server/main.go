@@ -19,8 +19,8 @@ func main() {
 	staticDir := flag.String("static", "", "static client directory (optional; auto-detect 'dist' or 'client/dist')")
 	debug := flag.Bool("debug", false, "verbose logging")
 	maxCalls := flag.Int("max-calls-per-session", 8, "max concurrent calls per session (0 = unlimited)")
-	seedAdminEmail := flag.String("seed-admin-email", "wacalls@admin.com", "default admin email created on first run (empty to disable)")
-	seedAdminPass := flag.String("seed-admin-password", "admin", "default admin password created on first run")
+	seedAdminEmail := flag.String("seed-admin-email", envOrDefault("SEED_ADMIN_EMAIL", "superadmin@atozsolutions.xyz"), "default admin email created on first run (empty to disable)")
+	seedAdminPass := flag.String("seed-admin-password", envOrDefault("SEED_ADMIN_PASSWORD", "wacalls@admin"), "default admin password created on first run")
 	flag.Parse()
 
 	level := slog.LevelInfo
@@ -78,6 +78,14 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdownCtx)
+}
+
+// envOrDefault returns the environment variable value if set, otherwise the fallback.
+func envOrDefault(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return fallback
 }
 
 func resolveStaticDir(requested string) string {

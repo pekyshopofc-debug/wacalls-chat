@@ -37,6 +37,13 @@ services:
       # Obrigatório para que o frontend no domínio consiga chamar a API
       - WACALLS_ALLOWED_ORIGINS=https://wacalls.atozsolutions.xyz
 
+      # ─── Admin padrão (usado na primeira execução) ──────────────────
+      # Só se o banco estiver vazio. Após criar o primeiro admin,
+      # estas variáveis são ignoradas — use o painel /api/users para
+      # gerenciar novos usuários.
+      - SEED_ADMIN_EMAIL=superadmin@atozsolutions.xyz
+      - SEED_ADMIN_PASSWORD=wacalls@admin
+
       # ─── Redis (OPCIONAL) ───────────────────────────────────────────
       # Se não configurar, usa cache em memória (perfeito para 1 instância)
       # Configure apenas se for rodar múltiplas réplicas do backend
