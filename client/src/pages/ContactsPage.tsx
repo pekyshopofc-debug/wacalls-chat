@@ -12,6 +12,7 @@ import {
   Upload,
   X,
   Copy,
+  Download,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ import {
   createContact,
   updateContact,
   deleteContact,
+  importContacts,
   type ContactRow,
 } from "@/services/contacts";
 import { useSessions, ensureSessionsWired } from "@/stores/sessions";
@@ -70,6 +72,9 @@ export default function ContactsPage() {
   const editFileRef = useRef<HTMLInputElement | null>(null);
   const [toDelete, setToDelete] = useState<ContactRow | null>(null);
 
+  const [openImport, setOpenImport] = useState(false);
+  const [importSessionId, setImportSessionId] = useState("");
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     ensureSessionsWired();
@@ -147,6 +152,23 @@ export default function ContactsPage() {
 
   };
 
+  const handleImport = async () => {
+    if (!importSessionId) return;
+    setImporting(true);
+    try {
+      const res = await importContacts(importSessionId);
+      toast.success(
+        `Importado: ${res.contactsImported} contato(s) e ${res.groupsImported} grupo(s)`,
+      );
+      setOpenImport(false);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao importar");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleDelete = async (c: ContactRow) => {
     try {
       await deleteContact(c.sessionId, c.chatJid);
@@ -176,9 +198,20 @@ export default function ContactsPage() {
               {stats.total} contatos · {stats.users} pessoas · {stats.groups} grupos
             </p>
           </div>
-          <Button onClick={() => setOpenCreate(true)}>
-            <Plus className="h-4 w-4" /> Novo contato
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportSessionId(sessions[0]?.id ?? "");
+                setOpenImport(true);
+              }}
+            >
+              <Download className="h-4 w-4" /> Importar do WhatsApp
+            </Button>
+            <Button onClick={() => setOpenCreate(true)}>
+              <Plus className="h-4 w-4" /> Novo contato
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -481,6 +514,47 @@ export default function ContactsPage() {
             </Button>
           </DialogFooter>
 
+        </DialogContent>
+      </Dialog>
+
+      {/* Import from WhatsApp */}
+      <Dialog open={openImport} onOpenChange={setOpenImport}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importar do WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Conexão</Label>
+              <Select value={importSessionId} onValueChange={setImportSessionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma conexão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name || s.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Traz todos os grupos e contatos salvos nesse número do WhatsApp para as abas
+              Contatos e Grupos, mesmo os que nunca mandaram mensagem por aqui. Conversas já
+              existentes não são alteradas. O histórico de mensagens desses contatos/grupos não é
+              importado — apenas conversas novas, a partir de agora, ficam disponíveis aqui.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenImport(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleImport} disabled={importing || !importSessionId}>
+              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Importar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -204,6 +204,19 @@ func (s *server) collectContactRows(ctx context.Context, u *currentUser) []conta
 			if s.chatMeta != nil {
 				metas, _ = s.chatMeta.ListBySession(ctx, sinfo.ID)
 			}
+			// Chats that only exist as metadata (imported contacts/groups,
+			// or contacts added via "Novo contato") have no message row, so
+			// ListChats above misses them. Add a zero-message placeholder.
+			seen := make(map[string]bool, len(chats))
+			for _, c := range chats {
+				seen[c.ChatJID] = true
+			}
+			for jid, m := range metas {
+				if seen[jid] {
+					continue
+				}
+				chats = append(chats, ChatSummary{ChatJID: jid, LastTs: m.UpdatedAt})
+			}
 			unread, _ := s.messages.UnreadCounts(ctx, sinfo.ID)
 			local := make([]contactRow, 0, len(chats))
 			for _, c := range chats {

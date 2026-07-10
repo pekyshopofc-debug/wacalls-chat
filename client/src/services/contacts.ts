@@ -141,3 +141,22 @@ export const deleteContact = async (sessionId: string, chatJid: string): Promise
   );
   if (!res.ok && res.status !== 204) return parseError(res);
 };
+
+export interface ImportContactsResult {
+  groupsImported: number;
+  contactsImported: number;
+}
+
+// Pulls every group the connection participates in and every contact saved
+// in that WhatsApp account's address book, even ones that never exchanged a
+// message through WaCalls, so they show up here without touching WhatsApp
+// Desktop. Existing conversations are never modified.
+export const importContacts = async (sessionId: string): Promise<ImportContactsResult> => {
+  const res = await fetch(apiUrl(`/api/sessions/${encodeURIComponent(sessionId)}/import-contacts`), {
+    method: "POST",
+    credentials: "include",
+    headers: headersJSON(),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as ImportContactsResult;
+};

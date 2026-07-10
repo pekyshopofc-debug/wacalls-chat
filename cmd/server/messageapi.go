@@ -647,6 +647,7 @@ func (s *server) registerMessageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sessions/{sid}/chats/{jid}/events", s.requireAuth(s.handleChatEvents))
 	mux.HandleFunc("POST /api/sessions/{sid}/chats/{jid}/sync", s.requireAuth(s.handleChatSync))
 	mux.HandleFunc("POST /api/sessions/{sid}/chats/sync-all", s.requireAuth(s.handleChatSyncAll))
+	mux.HandleFunc("POST /api/sessions/{sid}/import-contacts", s.requireAuth(s.handleImportContacts))
 	mux.HandleFunc("GET /api/sessions/{sid}/lid-pn/{jid}", s.requireAuth(s.handleLidToPN))
 	mux.HandleFunc("POST /api/sessions/{sid}/chats/{jid}/messages/{mid}/delete", s.requireAuth(s.handleMessageDelete))
 	mux.HandleFunc("POST /api/sessions/{sid}/chats/{jid}/messages/{mid}/edit", s.requireAuth(s.handleMessageEdit))
@@ -667,6 +668,21 @@ func (s *server) handleChatList(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.chatMeta != nil {
 		metas, _ := s.chatMeta.ListBySession(r.Context(), sess.id)
+		// Chats that only exist as metadata (imported contacts/groups that
+		// never exchanged a message, or contacts added via "Novo contato")
+		// have no row in the messages table, so ListChats above misses them
+		// entirely. Add a zero-message placeholder for each so they still
+		// render in the list.
+		seen := make(map[string]bool, len(chats))
+		for _, c := range chats {
+			seen[c.ChatJID] = true
+		}
+		for jid, m := range metas {
+			if seen[jid] {
+				continue
+			}
+			chats = append(chats, ChatSummary{ChatJID: jid, LastTs: m.UpdatedAt})
+		}
 		unread, _ := s.messages.UnreadCounts(r.Context(), sess.id)
 		for i := range chats {
 			if m, ok := metas[chats[i].ChatJID]; ok {
