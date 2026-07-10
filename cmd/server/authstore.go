@@ -681,23 +681,6 @@ func (s *authStore) SetUserQueues(ctx context.Context, userID string, queueIDs [
 	return tx.Commit()
 }
 
-// SeedAdmin ensures a default admin account exists when the database is empty.
-// It only runs when there are zero users — never overwrites or resets an
-// existing account. Safe to call on every startup.
-func (s *authStore) SeedAdmin(ctx context.Context, email, password string) (bool, error) {
-	n, err := s.UserCount(ctx)
-	if err != nil {
-		return false, err
-	}
-	if n > 0 {
-		return false, nil
-	}
-	if _, err := s.Signup(ctx, SignupInput{Email: email, Password: password}); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 // EnsureAdmin creates or updates the admin user identified by email.
 // Unlike SeedAdmin (which only works on an empty database), this function
 // always ensures the given email/password admin exists:
@@ -722,16 +705,20 @@ func (s *authStore) EnsureAdmin(ctx context.Context, email, password string) (bo
 	var existingActive int
 	err = s.db.QueryRowContext(ctx, `SELECT id, active FROM users WHERE email = ?`, email).Scan(&existingID, &existingActive)
 	if err == nil {
-		// User exists — update password and ensure admin role
-		if _, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ?, active = 1 WHERE id = ?`, string(hash), existingID); err != nil {
+		// User exists — update password, ensure admin role, revoke tokens atomically
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
 			return false, err
 		}
-		// Ensure admin role
-		if _, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?,?)`, existingID, RoleAdmin); err != nil {
+		defer tx.Rollback()
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ?, active = 1 WHERE id = ?`, string(hash), existingID); err != nil {
+			return false, err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?,?)`, existingID, RoleAdmin); err != nil {
 			return false, err
 		}
 		// Revoke all existing tokens so the user is forced to re-login
-		if tokens, err := s.db.QueryContext(ctx, `SELECT token FROM auth_tokens WHERE user_id = ?`, existingID); err == nil {
+		if tokens, err := tx.QueryContext(ctx, `SELECT token FROM auth_tokens WHERE user_id = ?`, existingID); err == nil {
 			var revoke []string
 			for tokens.Next() {
 				var t string
@@ -740,10 +727,15 @@ func (s *authStore) EnsureAdmin(ctx context.Context, email, password string) (bo
 				}
 			}
 			tokens.Close()
-			_, _ = s.db.ExecContext(ctx, `DELETE FROM auth_tokens WHERE user_id = ?`, existingID)
+			if _, err := tx.ExecContext(ctx, `DELETE FROM auth_tokens WHERE user_id = ?`, existingID); err != nil {
+				return false, err
+			}
 			if len(revoke) > 0 && s.OnTokensRevoked != nil {
 				go s.OnTokensRevoked(revoke)
 			}
+		}
+		if err := tx.Commit(); err != nil {
+			return false, err
 		}
 		return true, nil
 	}
