@@ -28,9 +28,16 @@ echo "⬆️  4. Subindo containers..."
 docker compose up -d
 echo ""
 
-# 5. Aguardar e verificar os logs
-echo "⏳ 5. Aguardando servidor iniciar..."
-sleep 5
+# 5. Aguardar healthcheck (até 30s)
+echo "⏳ 5. Aguardando servidor ficar saudável..."
+for i in $(seq 1 30); do
+  if docker compose exec -T wacalls wget --spider -q http://localhost:8080/api/health 2>/dev/null; then
+    echo "   ✅ Servidor pronto!"
+    break
+  fi
+  sleep 1
+done
+echo ""
 docker compose logs --tail=30
 
 echo ""
