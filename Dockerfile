@@ -56,4 +56,4 @@ VOLUME ["/data"]
 #   -seed-admin-password → default admin password
 ENTRYPOINT ["/app/wacalls-server"]
 CMD ["-addr", ":8080", "-static", "/app/dist", "-db", "/data/wacalls.db", \
-     "-seed-admin-email", "wacalls@admin.com", "-seed-admin-password", "admin"]
+     "-seed-admin-email", "wacalls@admin.com", "-seed-admin-password", "wacalls@admin"]
